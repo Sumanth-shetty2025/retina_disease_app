@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: retina_disease_app
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"

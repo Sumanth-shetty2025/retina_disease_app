@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="card">
+        
+        {% if is_invalid_image %}
+            <div class="error-box" style="margin-top: 30px; animation-delay: 0.2s;">
+                
+                <h2 style="color: #d32f2f; text-align: center;">🚫 Invalid image</h2>
+                
+                <p style="font-size: 1.2em; font-weight: 500; color: #333; text-align: center; margin-top: 10px;">
+                    it is not retina image please upload retina image only.
+                </p>
+            </div>
+            
+            <img class="preview" src="{{ url_for('uploaded_file', filename=filename) }}" alt="Invalid image preview">
+    
+            <a href="{{ url_for('home') }}" class="btn-back"><span class="fas fa-undo-alt"></span> Try Another Image</a>
+
+        {% else %}
+
+            <h2 style="margin-bottom: 5px;">Analyzed Image</h2>
+            <img class="preview" src="{{ url_for('uploaded_file', filename=filename) }}" alt="Retinal image preview">
+
+            {% if is_low_conf %}
+                <div class="low-conf-note" style="animation-delay: 0.2s;">
+                    <h2 class="low-conf-header">🚨 Low Confidence — Model Uncertain</h2>
+                    <p>Top prediction confidence is <strong>{{ "{:.2f}".format(top1_prob * 100) }}%</strong>. The input may be a clear retinal image, but the model is uncertain of the diagnosis. Please consult a specialist.</p>
+                </div>
+                
+            {% else %}
+                <h1 style="margin-top: 20px;">✅ Prediction Complete!</h1>
+                <h2 style="margin-top: 30px;">Primary Finding: <span class="highlight-text">{{ top1_label }}</span></h2>
+                
+                <div class="bar" style="--progress-width: {{ top1_prob * 100 }}%;">
+                    <div class="fill">
+                        {{ "{:.2f}".format(top1_prob * 100) }}% Confidence
+                    </div>
+                </div>
+                
+                <div class="disease-info-box">
+                    <h4><span class="fas fa-info-circle"></span> Information about {{ top1_label }}</h4>
+                    <p><strong>Description:</strong> {{ disease_info.description }}</p>
+                    <p><strong>Treatment & Management:</strong> {{ disease_info.treatment }}</p>
+                </div>
+            {% endif %}
+            
+            <h3 style="margin-top: 50px;">Detailed Probability Scores</h3>
+            <div class="pred-list">
+                <ol>
+                    {% for label, prob in top3 %}
+                        <li style="animation-delay: '{{ loop.index * 0.1 + 0.2 }}s';">
+                            <strong>{{ label }}</strong> — {{ "{:.2f}".format(prob * 100) }}%
+                        </li>
+                    {% endfor %}
+                </ol>
+            </div>
+            
+            <a href="{{ url_for('home') }}" class="btn-back"><span class="fas fa-undo-alt"></span> Perform New Prediction</a>
+
+        {% endif %}
+    </div>
+</body>
+</html>

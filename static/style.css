@@ -1,0 +1,368 @@
+/* --- Global Base Styling (Light Medical Theme) --- */
+body { 
+    font-family: 'Open Sans', 'Segoe UI', Arial, sans-serif; 
+    background-color: #f4f7f9; 
+    color: #333; 
+    margin: 0; 
+    padding: 40px 15px; 
+    min-height: 100vh;
+}
+
+/* --- Main Card/Container (Used for Landing, Index, and Results) --- */
+.card {
+    background: #ffffff; 
+    padding: 30px;
+    border-radius: 15px;
+    max-width: 900px; 
+    margin: 0 auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: none; 
+    transition: all 0.3s ease-out; /* Smoother general card transition */
+    text-align: center;
+}
+.card.dragover {
+    border: 2px dashed #00bcd4; /* Animated border on drag */
+    box-shadow: 0 0 20px rgba(0, 188, 212, 0.4); /* Glow effect */
+    transform: translateY(-5px) scale(1.005); /* Subtle lift and scale */
+}
+
+/* --- Headings and Text --- */
+h1 { margin-top: 0; color: #00796b; font-size: 2.2em; }
+h2 { margin: 0 0 10px 0; color: #00796b; font-size: 1.8em; }
+h3 { color: #009688; margin-top: 15px; }
+h4 { color: #555; }
+.highlight-text { color: #009688; font-weight: 900; }
+.note { 
+    color: #555; 
+    margin: 15px auto; 
+    font-size: 1.1em; 
+    font-style: normal; 
+    text-align: center; 
+    max-width: 700px; 
+    line-height: 1.5;
+    font-weight: 400; 
+}
+
+
+/* ---------------------------------------------------------------------- */
+/* --- LANDING PAGE STYLES --- */
+/* ---------------------------------------------------------------------- */
+
+.hero-header {
+    margin-bottom: 40px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e0f0f5; 
+}
+
+.trust-indicators { 
+    display: flex; 
+    justify-content: center; 
+    gap: 40px; 
+    margin: 30px auto 40px auto; 
+    color: #00796b; 
+    font-weight: 600; 
+    flex-wrap: wrap; 
+    max-width: 700px; 
+}
+.trust-indicators div { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    text-align: left; 
+}
+.trust-indicators .icon { font-size: 1.5em; }
+
+.landing-action-area {
+    margin: 30px 0;
+    padding-top: 20px;
+    border-top: 2px solid #e0f0f5;
+}
+
+.predict-btn-landing {
+    display: inline-block; 
+    background: linear-gradient(90deg, #4caf50, #8bc34a); 
+    color: #fff;
+    padding: 15px 25px; 
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 700; 
+    font-size: 1.1em; 
+    text-decoration: none; 
+    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease; /* Smoother transitions */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+.predict-btn-landing:hover { 
+    transform: translateY(-3px); /* More pronounced lift */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); /* Stronger shadow on hover */
+    background: linear-gradient(90deg, #5cb85c, #9ccc65); 
+}
+
+
+/* Information Card Grid */
+.info-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 30px;
+    margin-top: 20px;
+}
+.info-card {
+    background: #ffffff; 
+    border: 1px solid #cceeff;
+    padding: 25px;
+    border-radius: 10px;
+    color: #333;
+    text-align: left;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.info-card:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); }
+.info-card .tagline { font-style: italic; color: #555; margin-bottom: 15px; display: block; font-size: 0.95em; }
+.info-text-block { line-height: 1.6; font-size: 0.95em; }
+.info-image-container { text-align: center; margin: 15px 0 20px; }
+.info-image { max-width: 90%; height: auto; border-radius: 8px; border: 3px solid #f0f8ff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+
+
+
+/* ---------------------------------------------------------------------- */
+/* --- INDEX PAGE (Prediction Form) STYLES --- */
+/* ---------------------------------------------------------------------- */
+
+/* CRITICAL FIX: Hide the native file input element */
+#file {
+    display: none;
+}
+
+.upload-controls { 
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 25px; /* Increased bottom margin */
+    flex-wrap: wrap;
+    color: #333; 
+}
+
+/* Enhanced style for the custom "Choose File" label button */
+label.button {
+    background: linear-gradient(90deg, #00bcd4, #0097a7); 
+    padding: 14px 22px; /* Slightly larger button */
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.2s ease, box-shadow 0.2s ease; /* Added shadow transition */
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+}
+label.button:hover {
+    transform: translateY(-2px); /* Lift effect */
+    box-shadow: 0 5px 12px rgba(0,0,0,0.2); /* Stronger shadow */
+}
+
+/* Style for the file name display */
+#file-name { 
+    color: #009688; 
+    margin-left: 15px; /* Increased margin for better separation */
+    font-weight: 600; 
+    font-size: 1.05em; /* Slightly larger text */
+    min-width: 150px; /* Ensure space for longer names */
+    text-align: left;
+}
+
+button.predict {
+    background: linear-gradient(90deg, #4caf50, #8bc34a); 
+    color: #fff;
+    padding: 14px 22px; /* Slightly larger button */
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s, transform 0.2s ease, box-shadow 0.2s ease; /* Smoother transitions */
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+}
+button.predict:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 5px 12px rgba(0,0,0,0.2); 
+}
+
+.url-input-group { 
+    width: 100%; 
+    max-width: 450px; 
+    margin: 20px auto 0; /* Adjusted margin */
+    text-align: left; 
+}
+.url-input-group input[type="text"] {
+    width: 100%;
+    padding: 12px; /* Slightly more padding */
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    color: #333;
+    background-color: #f9f9f9;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease; /* Smooth focus effect */
+}
+.url-input-group input[type="text"]:focus {
+    border-color: #00bcd4; /* Teal border on focus */
+    box-shadow: 0 0 5px rgba(0, 188, 212, 0.3); /* Subtle glow on focus */
+    outline: none; /* Remove default outline */
+}
+#url-error { color: #d32f2f; margin-top: 8px; font-size: 0.9em; text-align: center; } 
+
+
+/* Buttons - Unified Professional Look (kept these general, for other uses if any) */
+.btn-primary { background: #009688; color: white; }
+.btn-secondary { background: #607d8b; color: white; }
+
+
+/* ---------------------------------------------------------------------- */
+/* --- RESULTS PAGE STYLES (Animated Style) --- */
+/* ---------------------------------------------------------------------- */
+
+/* Animation Keyframes for Progress Bar */
+@keyframes fillBar {
+    from { width: 0%; }
+    to { width: var(--progress-width); } /* Use a CSS variable set dynamically */
+}
+/* Animation Keyframes for Result Text Pop-in */
+@keyframes fadeInSlideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.preview { 
+    max-width: 300px; 
+    border-radius: 8px; 
+    border: 3px solid #eee; 
+    margin: 15px auto 30px auto; /* Added bottom margin */
+    display: block; 
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    transition: transform 0.3s ease-out;
+}
+.preview:hover {
+    transform: scale(1.03); /* Subtle hover animation */
+}
+
+/* Progress Bar Container */
+.bar {
+    width: 90%; /* Increased width for better display */
+    max-width: 500px;
+    height: 25px; /* Taller bar */
+    background: #e0f0f5; 
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 18px auto;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); /* Inset shadow for depth */
+}
+
+/* Progress Bar Filler (The animated part) */
+/* Progress Bar Filler (The animated part) */
+.fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00bcd4, #4db6ac); 
+    width: 0%; /* Start at 0, filled by JS/Inline style */
+    transition: width 1.5s ease-out; /* Fallback transition */
+    animation: fillBar 1.5s ease-out forwards; /* Apply animation */
+    
+    /* Text inside the bar */
+    display: flex;
+    align-items: center;
+    /* FIX: Center the text horizontally within the filled area */
+    justify-content: center; 
+    /* FIX: Remove right padding so text centers properly */
+    padding-right: 0px; 
+    color: #fff;
+    font-weight: 700;
+    font-size: 1em; 
+}
+
+/* Results Display List */
+.pred-list ol {
+    text-align: left;
+    color: #555; 
+    max-width: 450px; /* Wider list */
+    margin: 30px auto; /* More margin */
+    padding-left: 20px;
+}
+.pred-list li {
+    padding: 8px 0; /* More padding */
+    border-bottom: 1px dashed #e0f0f5;
+    animation: fadeInSlideUp 0.5s ease-out forwards; /* Animated list items */
+    opacity: 0; /* Start hidden */
+}
+/* Stagger the animation of list items */
+.pred-list li:nth-child(1) { animation-delay: 0.2s; }
+.pred-list li:nth-child(2) { animation-delay: 0.3s; }
+.pred-list li:nth-child(3) { animation-delay: 0.4s; }
+
+
+.disease-info-box {
+    background: #e0f2f1; 
+    border-radius: 12px; /* Rounder corners */
+    padding: 25px; /* More padding */
+    margin-top: 30px; /* More margin */
+    text-align: left;
+    color: #333;
+    border-left: 6px solid #009688; /* Thicker border */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    animation: fadeInSlideUp 0.7s ease-out forwards; /* Animated box */
+    opacity: 0;
+    animation-delay: 0.5s;
+}
+.disease-info-box h4 { color: #00796b; margin-top: 0; font-size: 1.2em; }
+.disease-info-box p { margin: 8px 0; font-size: 16px; line-height: 1.6; }
+
+/* Low Confidence Specifics */
+.low-conf-header { color: #d32f2f !important; }
+.low-conf-note { 
+    background: #ffcdd2; 
+    padding: 20px;
+    border-radius: 12px;
+    color: #333; 
+    border-left: 6px solid #d32f2f;
+    font-weight: 500;
+    animation: fadeInSlideUp 0.7s ease-out forwards;
+    opacity: 0;
+    animation-delay: 0.6s;
+}
+
+/* Error Handling (Optional: Add animation to error box) */
+.error-box {
+    background: #ef9a9a; 
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: left;
+    color: #333;
+    border-left: 5px solid #d32f2f;
+    animation: fadeInSlideUp 0.5s ease-out forwards;
+    opacity: 0;
+}
+
+/* Back button style */
+.btn-back {
+    display: inline-block;
+    background: #607d8b; /* Gray secondary */
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    margin-top: 30px;
+    transition: background 0.2s, transform 0.2s;
+}
+.btn-back:hover {
+    background: #455a64;
+    transform: translateY(-2px);
+}
+
+/* Media Queries */
+@media (max-width: 600px) {
+    body { padding: 15px; }
+    .card { padding: 18px; }
+    .upload-controls { flex-direction: column; align-items: stretch; gap: 10px; }
+    label.button, button.predict { width: 100%; text-align: center; } 
+    #file-name { margin-left: 0; margin-top: 10px; text-align: center; }
+    .preview { max-width: 100%; }
+    .bar { width: 100%; }
+    .info-section { grid-template-columns: 1fr; }
+    .trust-indicators { flex-direction: column; align-items: center; gap: 15px; } 
+}
