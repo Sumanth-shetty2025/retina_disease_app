@@ -9,47 +9,53 @@
 </head>
 <body>
     <div class="card">
-        <h1 style="text-align:center;">🩺 Retina Disease Classifier</h1>
-        
+        <h1><i class="fas fa-eye"></i> Retina Disease Classifier</h1>
+
         {% if model_error %}
-        <div class="error-box">
-            <h2>⚠️ CRITICAL ERROR: Model Not Loaded</h2>
-            <p>Please check the terminal output for the exact error. Ensure <code>EfficientNetB0_ODIR_OfflineAug.h5</code> is correctly named and located.</p>
-        </div>
-        {% else %}
-
-        {% if error_message %}
-        <div class="error-box">
-            <h2>⚠️ Input Error</h2>
-            <p>{{ error_message }}</p>
-            <p><a href="{{ url_for('index') }}" class="btn-secondary">Try Again</a></p>
-        </div>
-        {% endif %}
-
-        <p class="note"><strong class="highlight-text">Drag & Drop an image here</strong>, upload a file, or paste a link below.</p>
-
-        <form action="{{ url_for('predict') }}" method="post" enctype="multipart/form-data" id="prediction-form">
-            <div class="upload-section">
-
-                <div class="upload-controls">
-                    <label class="button" for="file"><span class="fas fa-folder-open"></span> Choose File</label>
-                    
-                    <input id="file" type="file" name="file" onchange="setFileName(this)">
-                    
-                    <span id="file-name">No file chosen</span>
-
-                    <button type="submit" class="predict"><span class="fas fa-search"></span> Predict</button>
-                </div>
-
-                <div class="url-input-group">
-                    <p style="margin-bottom: 5px; font-size: 14px; text-align: center;">OR paste a direct image URL (e.g., ending in .jpg, .png)</p>
-                    <input type="text" id="image_url" name="image_url" placeholder="Paste image URL here..." onkeyup="setFileName(this)">
-                    <p id="url-error" style="display:none;"></p> 
-                </div>
+            <div class="disclaimer" style="background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">
+                <h2><i class="fas fa-exclamation-triangle"></i> Critical Error: Model Not Loaded</h2>
+                <p>The prediction model could not be loaded. Please ensure the file <code>EfficientNetB0_ODIR_OfflineAug.h5</code> is in the correct directory and check the application logs for details.</p>
             </div>
-        </form>
+        {% else %}
+            <p class="note">
+                Upload a retinal fundus image to get a preliminary screening for common eye diseases.
+            </p>
+
+            <form action="{{ url_for('predict_post') }}" method="post" enctype="multipart/form-data" id="prediction-form" novalidate>
+                <div class="upload-area" id="uploadArea" role="button" tabindex="0" aria-label="Upload retinal image">
+                    <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <p><strong>Drag & Drop</strong> your image here or <strong>Click to Select File</strong></p>
+                    <input type="file" name="file" id="fileElem" accept="image/*">
+                </div>
+
+                <div class="image-preview" id="imagePreviewContainer" style="display:none;">
+                    <img id="imagePreview" src="" alt="Image Preview"/>
+                </div>
+
+                <div class="loading-indicator" id="loadingIndicator" aria-live="polite">
+                    <span class="loading-spinner" aria-hidden="true"></span>
+                    <span>Analyzing image...</span>
+                </div>
+
+                <div class="btn-group">
+                    <button type="submit" class="btn predict-btn" id="predictBtn" style="display:none;"><i class="fas fa-search"></i> Run Prediction</button>
+                    <a href="{{ url_for('landing_page') }}" class="btn back-btn"><i class="fas fa-home"></i> Back to Home</a>
+                </div>
+            </form>
+
+            {% if error_message %}
+                <div class="disclaimer" style="margin-top: 20px; background-color: #f8d7da; color: #721c24; border-color: #f5c6cb;">
+                    <h4><i class="fas fa-exclamation-circle"></i> Input Error</h4>
+                    <p>{{ error_message }}</p>
+                </div>
+            {% endif %}
         {% endif %}
     </div>
+
+    <footer>
+        <p>&copy; 2024 AI Retinal Disease Screening. For informational purposes only.</p>
+        <p><a href="{{ url_for('landing_page') }}">About The Diseases</a></p>
+    </footer>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

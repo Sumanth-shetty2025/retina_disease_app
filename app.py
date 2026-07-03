@@ -1,38 +1,54 @@
-# app.py (Check/Fix these lines)
-
-from flask import Flask, render_template, request, send_from_directory
-# Check the Python environment for these imports!
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, abort
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image 
 from tensorflow.keras.applications.efficientnet import preprocess_input 
 
 import numpy as np
 import os
+from datetime import datetime
 from werkzeug.utils import secure_filename
 from PIL import Image
+import requests
+import uuid
+from io import BytesIO
 
-# ... rest of your code
 app = Flask(__name__)
+
 # --- Configuration ---
-# NOTE: The model path MUST match the name exactly, including the space if present.
-MODEL_PATH = "EfficientNetB0_ODIR_OfflineAug.h5" 
-UPLOAD_DIR = "static/uploads" 
+# 1. Get the directory where this app.py file is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Define the exact file name (Make sure your file matches this exactly!)
+MODEL_FILENAME = "EfficientNetB0_ODIR_OfflineAug.h5"
+
+# 3. Create the full absolute path
+MODEL_PATH = os.path.join(BASE_DIR, MODEL_FILENAME)
+
+UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-CONF_THRESHOLD = 0.45
+
+CONF_THRESHOLD = 0.45 # Standard low confidence threshold for known retinal images
+INVALID_IMAGE_THRESHOLD = 0.35 # Threshold to reject clearly non-retinal images
 
 # --- Load model ---
 model = None
+print(f"DEBUG: Attempting to load model from: {MODEL_PATH}")
+
 try:
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"File not found at {MODEL_PATH}")
+        
     model = load_model(MODEL_PATH)
-    print("✅ Model loaded successfully!")
+    print("SUCCESS: Model loaded successfully!")
 except Exception as e:
-    print(f"*** ERROR: Could not load model from {MODEL_PATH} ***")
-    print(f"*** SOLUTION: Ensure the model file is correctly named ('{MODEL_PATH}') and is in the root directory. Error: {e} ***")
-    
+    print(f"CRITICAL ERROR: Could not load model.")
+    print(f"   Reason: {e}")
+    print(f"   SOLUTION: Ensure '{MODEL_FILENAME}' is in the folder: {BASE_DIR}")
+
 # --- Class labels (exact order used in training) ---
 class_labels = ['Retinal Vein Occlusion', 'ageDegeneration', 'cataract', 'diabetes', 'myopia', 'normal']
 
-# --- DISEASE INFORMATION (Detailed for Landing Page and Results Page) ---
+# --- DISEASE INFORMATION ---
 DISEASE_INFO = {
     "Retinal Vein Occlusion": {
         "display_name": "Retinal Vein Occlusion (RVO)",
@@ -84,7 +100,7 @@ DISEASE_INFO = {
     }
 }
 
-# --- Helpers (kept your original robust implementation) ---
+# --- Helpers ---
 def preprocess_for_model(img_path_or_data, img_size=224):
     """Load and preprocess image for EfficientNet"""
     if isinstance(img_path_or_data, str):
@@ -107,27 +123,30 @@ def predict_topk(x, k=3):
 
 # --- Routes ---
 
-# 1. HOME ROUTE (Landing Page)
+# 1. LANDING PAGE
 @app.route('/', methods=['GET'])
-def home():
+def landing_page():
     return render_template('landing.html', DISEASE_INFO=DISEASE_INFO)
 
-# 2. PREDICTION START PAGE (Upload Form)
-@app.route('/predict_start', methods=['GET'])
-def prediction_page():
+# 2. PREDICTION PAGE (Upload Form)
+@app.route('/predict', methods=['GET'])
+def index():
     if model is None:
         return render_template('index.html', model_error=True)
     return render_template('index.html', model_error=False)
 
 @app.route('/static/uploads/<path:filename>')
 def uploaded_file(filename):
-    return send_from_directory(os.path.join(os.getcwd(), 'static/uploads'), filename)
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.isfile(file_path):
+        abort(404)
+    return send_from_directory(UPLOAD_DIR, filename)
 
 # 3. PREDICTION EXECUTION ROUTE
 @app.route('/predict', methods=['POST'])
-def predict():
+def predict_post():
     if model is None:
-        return redirect(url_for('prediction_page')) 
+        return redirect(url_for('index'))
 
     url = request.form.get('image_url')
     file = request.files.get('file')
@@ -161,7 +180,7 @@ def predict():
 
     elif file and file.filename:
         try:
-            filename = secure_filename(file.filename)
+            filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
             save_path = os.path.join(UPLOAD_DIR, filename)
             file.save(save_path)
             x = preprocess_for_model(save_path, img_size=224)
@@ -177,14 +196,30 @@ def predict():
     except Exception as e:
         return render_template('index.html', error_message=f"Prediction failed: {e}")
 
-    # --- RESULT DISPLAY ---
+    # --- RESULT DISPLAY LOGIC ---
+
+    # 1. REJECTION CHECK: If confidence is below 50%, reject the image entirely.
+    if top1_prob < INVALID_IMAGE_THRESHOLD:
+        result_data = {
+            'filename': filename,
+            'is_invalid_image': True, # Flag for the template
+            'analysis_date': datetime.now().strftime('%d %b %Y'),
+            'analysis_time': datetime.now().strftime('%I:%M %p').lstrip('0'),
+            'model_used': 'EfficientNetB0',
+        }
+        return render_template('results.html', **result_data)
+
+    # 2. NORMAL FLOW: Handle low/high confidence retinal images.
     result_data = {
         'filename': filename,
         'top3': top3,
         'top1_label': top1_label,
         'top1_prob': top1_prob,
         'is_low_conf': top1_prob < CONF_THRESHOLD,
-        'disease_info': DISEASE_INFO.get(top1_label, {}) # Pass the full info object
+        'disease_info': DISEASE_INFO.get(top1_label, {}),
+        'analysis_date': datetime.now().strftime('%d %b %Y'),
+        'analysis_time': datetime.now().strftime('%I:%M %p').lstrip('0'),
+        'model_used': 'EfficientNetB0',
     }
 
     return render_template('results.html', **result_data)

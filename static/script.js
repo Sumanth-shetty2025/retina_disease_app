@@ -1,126 +1,110 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Array of common image extensions for validation
-    const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'];
-
-    const fileInput = document.getElementById('file');
-    const urlInput = document.getElementById('image_url');
-    const nameDisplay = document.getElementById('file-name');
-    const urlError = document.getElementById('url-error');
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileElem');
+    const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+    const imagePreview = document.getElementById('imagePreview');
+    const predictBtn = document.getElementById('predictBtn');
     const form = document.getElementById('prediction-form');
-    let dropArea = document.querySelector('.card');
+    const loadingIndicator = document.getElementById('loadingIndicator');
 
-    // --- Core UI Logic ---
-    window.setFileName = function(input) {
-        urlError.style.display = 'none';
+    if (uploadArea) {
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
 
-        if (input.id === 'file') {
-            // File chosen: display name, clear URL field
-            const fn = fileInput.files[0] ? fileInput.files[0].name : 'No file chosen';
-            nameDisplay.innerText = fn;
-            if (fileInput.files[0]) {
-                urlInput.value = "";
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        // Handle dropped files
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        // Open file selector when upload area is clicked
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        uploadArea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
             }
-        } else if (input.id === 'image_url') {
-            // URL entered: clear file input, update name display
-            if (urlInput.value.trim() !== "") {
-                fileInput.value = ""; // Clear file input
-                nameDisplay.innerText = "Image URL ready for prediction.";
-            } else {
-                nameDisplay.innerText = fileInput.files[0] ? fileInput.files[0].name : 'No file chosen';
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+                handleFiles(files);
             }
-        }
-    };
-
-    // --- Validation Logic ---
-    function validateAndSubmit(event) {
-        urlError.style.display = 'none';
-
-        // 1. Check if both are empty
-        if (urlInput.value.trim() === "" && fileInput.files.length === 0) {
-            urlError.innerText = "⚠️ Error: Please upload a file or provide a URL.";
-            urlError.style.display = 'block';
-            event.preventDefault();
-            return false;
-        }
-
-        // 2. Check URL for file extension if file is NOT provided
-        if (urlInput.value.trim() !== "" && fileInput.files.length === 0) {
-            const url = urlInput.value.trim().toLowerCase();
-
-            // Simple check to see if the URL contains a common image extension
-            const isImageLink = IMAGE_EXTENSIONS.some(ext => url.includes(ext));
-
-            if (!isImageLink) {
-                urlError.innerText = "⚠️ Error: URL must be a direct link to an image file (.jpg, .png, etc.).";
-                urlError.style.display = 'block';
-                event.preventDefault();
-                return false;
-            }
-        }
-
-        // 3. Prevent form submission if both have content (only one allowed)
-        if (urlInput.value.trim() !== "" && fileInput.files.length > 0) {
-             urlError.innerText = "⚠️ Error: Please use EITHER the file upload OR the URL input, not both.";
-             urlError.style.display = 'block';
-             event.preventDefault();
-             return false;
-        }
-
-        return true; // Proceed with submission
+        });
     }
 
-    // Attach validation to the form's submit event
-    if (form) {
-        form.addEventListener('submit', validateAndSubmit);
-    }
-
-    // --- Drag and Drop Logic ---
     function preventDefaults(e) {
         e.preventDefault();
         e.stopPropagation();
     }
 
-    // Prevent default drag behaviors
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        if (dropArea) {
-            dropArea.addEventListener(eventName, preventDefaults, false);
-        }
-        document.body.addEventListener(eventName, preventDefaults, false);
-    });
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
 
-    // Highlight drop area when item is dragged over it
-    if (dropArea) {
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
-        });
-
-        // Handle dropped files/URLs
-        dropArea.addEventListener('drop', (e) => {
-            const dataTransfer = e.dataTransfer;
-            const url = dataTransfer.getData('text/uri-list');
-
-            if (url) {
-                // Dropped a URL (e.g., dragging an image from a browser)
-                urlInput.value = url;
-                setFileName(urlInput);
-            } else if (dataTransfer.files.length > 0) {
-                // Dropped an image file
+    function handleFiles(files) {
+        if (files.length > 0) {
+            const file = files[0];
+            if (validateFile(file)) {
+                // Set the file to the input
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
                 fileInput.files = dataTransfer.files;
-                setFileName(fileInput);
+
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = () => {
+                    imagePreview.src = reader.result;
+                    imagePreviewContainer.style.display = 'block';
+                    predictBtn.style.display = 'inline-block';
+                    if (loadingIndicator) {
+                        loadingIndicator.style.display = 'none';
+                    }
+                    if (uploadArea) {
+                        uploadArea.style.display = 'none'; // Hide upload area
+                    }
+                };
+                reader.readAsDataURL(file);
             } else {
-                // Attempt to grab text that might be a URL
-                const textData = dataTransfer.getData('text/plain');
-                if (textData && (textData.startsWith('http://') || textData.startsWith('https://'))) {
-                    urlInput.value = textData;
-                    setFileName(urlInput);
-                } else {
-                    nameDisplay.innerText = "Drop failed. Please drop an image file or an image from a website.";
-                }
+                alert('Please upload a valid image file (jpg, jpeg, png).');
             }
-        }, false);
+        }
+    }
+
+    function validateFile(file) {
+        const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        return validTypes.includes(file.type);
+    }
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            if (fileInput.files.length === 0) {
+                e.preventDefault();
+                alert('Please select an image to upload.');
+                return;
+            }
+
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'flex';
+            }
+            if (predictBtn) {
+                predictBtn.disabled = true;
+            }
+        });
     }
 });

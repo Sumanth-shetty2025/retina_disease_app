@@ -8,46 +8,169 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <div class="card">
-        
-        <h2 style="margin-bottom: 5px;">Analyzed Image</h2>
-        <img class="preview" src="{{ url_for('uploaded_file', filename=filename) }}" alt="Retinal image preview">
+    {% set info = disease_info if disease_info is defined else {} %}
+    {% set image_quality = 'Good' if (not is_invalid_image and top1_prob >= 0.75) else ('Moderate' if (not is_invalid_image and top1_prob >= 0.45) else 'Poor') %}
+    {% set certainty_label = 'Low Confidence' if is_low_conf else 'High Confidence' %}
+    {% set certainty_class = 'warning' if is_low_conf else 'success' %}
 
-        {% if is_low_conf %}
-            <div class="low-conf-note" style="animation-delay: 0.2s;">
-                <h2 class="low-conf-header">🚨 Low Confidence — Model Uncertain</h2>
-                <p>Top prediction confidence is <strong>{{ "{:.2f}".format(top1_prob * 100) }}%</strong>. The input may not be a clear retinal image or the condition is rare. Please consult a specialist.</p>
-            </div>
-            
-        {% else %}
-            <h1 style="margin-top: 20px;">✅ Prediction Complete!</h1>
-            <h2 style="margin-top: 30px;">Primary Finding: <span class="highlight-text">{{ top1_label }}</span></h2>
-            
-            <div class="bar" style="--progress-width: {{ top1_prob * 100 }}%;">
-                <div class="fill">
-                    {{ "{:.2f}".format(top1_prob * 100) }}% Confidence
+    <main class="results-page">
+        <section class="results-shell">
+            <header class="results-header">
+                <div class="results-title-mark">
+                    <i class="fas fa-chart-column"></i>
                 </div>
+                <div>
+                    <h1>Prediction Results</h1>
+                    <p>AI analysis of your retinal fundus image</p>
+                </div>
+            </header>
+
+            {% if is_invalid_image %}
+            <section class="results-grid invalid-state">
+                <article class="panel image-panel">
+                    <div class="uploaded-image-frame invalid-frame">
+                        <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Uploaded retinal image">
+                    </div>
+                    <div class="uploaded-caption">
+                        <strong>Uploaded Image</strong>
+                        <span>Image validation failed</span>
+                    </div>
+                </article>
+
+                <article class="panel summary-panel alert-panel">
+                    <span class="pill pill-danger">INVALID IMAGE</span>
+                    <h2>Unable to analyze this upload</h2>
+                    <div class="summary-alert">
+                        The uploaded file does not appear to be a valid retinal fundus image. Please upload a clear fundus photo and try again.
+                    </div>
+                    <p class="summary-text">For the best result, use a centered, well-lit retinal image with the optic disc and macula visible.</p>
+                    <div class="summary-meta">
+                        <div><span>Date</span><strong>{{ analysis_date }}</strong></div>
+                        <div><span>Time</span><strong>{{ analysis_time }}</strong></div>
+                        <div><span>Model</span><strong>{{ model_used }}</strong></div>
+                        <div><span>Image Quality</span><strong class="text-danger">Poor</strong></div>
+                    </div>
+                </article>
+
+                <aside class="panel side-panel">
+                    <div class="info-card">
+                        <div class="info-card-head"><i class="fas fa-circle-info"></i> Key Information</div>
+                        <div class="info-list">
+                            <div><span>Analysis Date</span><strong>{{ analysis_date }}</strong></div>
+                            <div><span>Analysis Time</span><strong>{{ analysis_time }}</strong></div>
+                            <div><span>Model Used</span><strong>{{ model_used }}</strong></div>
+                            <div><span>Image Quality</span><strong class="text-danger">Poor</strong></div>
+                        </div>
+                    </div>
+                    <div class="info-card recommendation-card">
+                        <div class="info-card-head"><i class="fas fa-shield-heart"></i> Recommendations</div>
+                        <ul class="check-list">
+                            <li>Upload a clear retinal fundus image</li>
+                            <li>Make sure the image is not blurred or cropped</li>
+                            <li>Use the center of the retina as much as possible</li>
+                            <li>Consult an ophthalmologist if symptoms persist</li>
+                        </ul>
+                    </div>
+                    <div class="info-card disclaimer-card">
+                        <div class="info-card-head text-danger"><i class="fas fa-triangle-exclamation"></i> Disclaimer</div>
+                        <p>This is an automated analysis and not a substitute for a professional medical diagnosis.</p>
+                    </div>
+                </aside>
+            </section>
+            {% else %}
+            <section class="results-grid">
+                <article class="panel image-panel">
+                    <div class="uploaded-image-frame">
+                        <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Uploaded retinal image">
+                    </div>
+                    <div class="uploaded-caption">
+                        <strong>Uploaded Image</strong>
+                        <span>Fundus Image • {{ analysis_date }} • {{ analysis_time }}</span>
+                    </div>
+                </article>
+
+                <article class="panel summary-panel">
+                    <span class="pill">PRIMARY FINDING</span>
+                    <h2>{{ top1_label }}</h2>
+                    <div class="confidence-box">
+                        <div>
+                            <small>Confidence Score</small>
+                            <strong>{{ "{:.2f}".format(top1_prob * 100) }}%</strong>
+                        </div>
+                        <div class="confidence-badge {{ certainty_class }}">
+                            <i class="fas fa-shield-heart"></i>
+                        </div>
+                    </div>
+
+                    <div class="about-block">
+                        <h3>About {{ top1_label }}</h3>
+                        <p><strong>Description:</strong> {{ info.description if info.description is defined else 'No description available.' }}</p>
+                        <p><strong>Treatment:</strong> {{ info.treatment if info.treatment is defined else 'No treatment summary available.' }}</p>
+                    </div>
+                </article>
+
+                <aside class="panel side-panel">
+                    <div class="info-card">
+                        <div class="info-card-head"><i class="fas fa-circle-info"></i> Key Information</div>
+                        <div class="info-list">
+                            <div><span>Analysis Date</span><strong>{{ analysis_date }}</strong></div>
+                            <div><span>Analysis Time</span><strong>{{ analysis_time }}</strong></div>
+                            <div><span>Model Used</span><strong>{{ model_used }}</strong></div>
+                            <div><span>Image Quality</span><strong class="{{ 'text-success' if image_quality == 'Good' else 'text-warning' if image_quality == 'Moderate' else 'text-danger' }}">{{ image_quality }}</strong></div>
+                        </div>
+                    </div>
+                    <div class="info-card recommendation-card">
+                        <div class="info-card-head"><i class="fas fa-shield-heart"></i> Recommendations</div>
+                        <ul class="check-list">
+                            {% if top1_label == 'normal' %}
+                                <li>Continue regular eye check-ups</li>
+                                <li>Maintain blood pressure and blood sugar control</li>
+                                <li>Report any sudden visual changes promptly</li>
+                                <li>Keep a healthy diet and lifestyle</li>
+                            {% else %}
+                                <li>Consult an ophthalmologist for proper diagnosis</li>
+                                <li>Regular eye check-up is recommended</li>
+                                <li>Follow prescribed treatment plan</li>
+                                <li>Monitor vision changes regularly</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    <div class="info-card disclaimer-card">
+                        <div class="info-card-head text-danger"><i class="fas fa-triangle-exclamation"></i> Disclaimer</div>
+                        <p>This is an automated analysis and not a substitute for a professional medical diagnosis. Always consult with a qualified healthcare provider for any health concerns.</p>
+                    </div>
+                </aside>
+
+                <article class="panel probability-panel full-width-panel">
+                    <div class="section-title">
+                        <i class="fas fa-chart-bar"></i>
+                        <h3>Detailed Probability Scores</h3>
+                    </div>
+                    <div class="probability-list">
+                        {% for label, prob in top3 %}
+                        <div class="probability-row">
+                            <div class="probability-label">{{ label }}</div>
+                            <div class="probability-track">
+                                <div class="probability-fill" style="width: {{ prob * 100 }}%;"></div>
+                            </div>
+                            <div class="probability-value">{{ "{:.2f}".format(prob * 100) }}%</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </article>
+            </section>
+            {% endif %}
+
+            <div class="action-row">
+                <a href="{{ url_for('index') }}" class="action-btn secondary"><i class="fas fa-rotate-right"></i> Analyze Another Image</a>
+                <a href="{{ url_for('landing_page') }}" class="action-btn primary"><i class="fas fa-book-open"></i> Learn About Diseases</a>
+                <a href="{{ url_for('index') }}" class="action-btn success"><i class="fas fa-download"></i> Download Report (PDF)</a>
             </div>
-            
-            <div class="disease-info-box">
-                <h4><span class="fas fa-info-circle"></span> Information about {{ top1_label }}</h4>
-                <p><strong>Description:</strong> {{ disease_info.description }}</p>
-                <p><strong>Prevention:</strong> {{ disease_info.treatment }}</p>
-            </div>
-        {% endif %}
-        
-        <h3 style="margin-top: 50px;">Detailed Probability Scores</h3>
-        <div class="pred-list">
-            <ol>
-                {% for label, prob in top3 %}
-                    <li style="animation-delay: '{{ loop.index * 0.1 + 0.2 }}s';">
-                        <strong>{{ label }}</strong> — {{ "{:.2f}".format(prob * 100) }}%
-                    </li>
-                {% endfor %}
-            </ol>
-        </div>
-        
-        <a href="{{ url_for('home') }}" class="btn-back"><span class="fas fa-undo-alt"></span> Perform New Prediction</a>
-    </div>
+
+            <footer class="results-footer">
+                <p>&copy; 2024 AI Retinal Disease Screening. For informational purposes only.</p>
+            </footer>
+        </section>
+    </main>
 </body>
 </html>
