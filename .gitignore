@@ -1,24 +1,20 @@
-# Virtual Environment
-.venv/
-
-# Python Cache
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
-*.pyd
+
+# Virtual Environment
+.venv/
 
 # VS Code
 .vscode/
 
-# Environment Variables
-.env
+# Upload folder
+static/uploads/*
 
-# Uploaded Images
-static/uploads/
+# Keep upload folder
+!static/uploads/.gitkeep
 
-# Log Files
-*.log
-
-# OS Files
+# OS
 .DS_Store
 Thumbs.db
