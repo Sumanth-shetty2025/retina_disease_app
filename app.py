@@ -1,18 +1,37 @@
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, abort
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image 
-from tensorflow.keras.applications.efficientnet import preprocess_input 
+import gc
+import logging
+import os
+import tempfile
+import traceback
+import uuid
+from datetime import datetime
+
+# Keep TensorFlow conservative on small Render instances.
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "1")
+os.environ.setdefault("TF_NUM_INTEROP_THREADS", "1")
 
 import numpy as np
-import os
-from datetime import datetime
-from werkzeug.utils import secure_filename
-from PIL import Image
 import requests
-import uuid
-from io import BytesIO
+import tensorflow as tf
+from flask import Flask, abort, redirect, render_template, request, send_from_directory, url_for
+from PIL import Image, UnidentifiedImageError
+from tensorflow.keras.applications.efficientnet import preprocess_input
+from tensorflow.keras.models import load_model
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+try:
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+except RuntimeError:
+    # TensorFlow threading can only be configured before runtime initialization.
+    logger.info("TensorFlow threading was already initialized before configuration.")
 
 # --- Configuration ---
 # 1. Get the directory where this app.py file is located
@@ -29,20 +48,33 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 CONF_THRESHOLD = 0.45 # Standard low confidence threshold for known retinal images
 INVALID_IMAGE_THRESHOLD = 0.35 # Threshold to reject clearly non-retinal images
+IMAGE_SIZE = 224
+MODEL_USED = "EfficientNetB0"
+MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/91.0.4472.124 Safari/537.36"
+    )
+}
+
+Image.MAX_IMAGE_PIXELS = 20_000_000
 
 # --- Load model ---
 model = None
-print(f"DEBUG: Attempting to load model from: {MODEL_PATH}")
+logger.info("Attempting to load model from: %s", MODEL_PATH)
 
 try:
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"File not found at {MODEL_PATH}")
-        
-    model = load_model(MODEL_PATH)
-    print("SUCCESS: Model loaded successfully!")
-except Exception as e:
+
+    model = load_model(MODEL_PATH, compile=False)
+    logger.info("Model loaded successfully.")
+except Exception as exc:
+    logger.exception("Critical error: could not load model.")
     print(f"CRITICAL ERROR: Could not load model.")
-    print(f"   Reason: {e}")
+    print(f"   Reason: {exc}")
     print(f"   SOLUTION: Ensure '{MODEL_FILENAME}' is in the folder: {BASE_DIR}")
 
 # --- Class labels (exact order used in training) ---
@@ -101,25 +133,141 @@ DISEASE_INFO = {
 }
 
 # --- Helpers ---
-def preprocess_for_model(img_path_or_data, img_size=224):
-    """Load and preprocess image for EfficientNet"""
-    if isinstance(img_path_or_data, str):
-        img = Image.open(img_path_or_data).convert("RGB")
-    else:
-        img = Image.open(img_path_or_data).convert("RGB")
+def log_exception(message):
+    logger.exception(message)
+    traceback.print_exc()
 
-    img = img.resize((img_size, img_size))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
-    return x
+
+def preprocess_pil_image(img, img_size=IMAGE_SIZE):
+    """Convert a PIL image into one EfficientNet batch."""
+    converted_img = None
+    if img.mode != "RGB":
+        converted_img = img.convert("RGB")
+        img = converted_img
+
+    try:
+        resized = img.resize((img_size, img_size), Image.Resampling.BILINEAR)
+        arr = np.asarray(resized, dtype=np.float32)
+        batch = arr[np.newaxis, ...]
+        batch = preprocess_input(batch)
+
+        del resized
+        del arr
+        return batch
+    finally:
+        if converted_img is not None:
+            converted_img.close()
+
+
+def preprocess_image_file(image_path, img_size=IMAGE_SIZE):
+    """Open, validate, close, and preprocess an image from disk."""
+    try:
+        with Image.open(image_path) as img:
+            return preprocess_pil_image(img, img_size=img_size)
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ValueError("The uploaded file could not be processed. Not a valid image.") from exc
+
+
+def remove_file_safely(file_path):
+    if not file_path:
+        return
+    try:
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+    except OSError:
+        logger.warning("Could not remove temporary file: %s", file_path, exc_info=True)
+
+
+def stream_url_to_temp_file(url):
+    temp_path = None
+    bytes_read = 0
+
+    try:
+        with requests.get(url, headers=REQUEST_HEADERS, timeout=15, stream=True) as response:
+            response.raise_for_status()
+
+            with tempfile.NamedTemporaryFile(delete=False, dir=UPLOAD_DIR, suffix=".download") as temp_file:
+                temp_path = temp_file.name
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+
+                    bytes_read += len(chunk)
+                    if bytes_read > MAX_DOWNLOAD_BYTES:
+                        raise ValueError("The image URL is too large. Please use an image under 10 MB.")
+
+                    temp_file.write(chunk)
+
+        return temp_path
+    except Exception:
+        remove_file_safely(temp_path)
+        raise
+
+
+def save_url_image_and_preprocess(url):
+    temp_path = None
+    filename = f"url_image_{uuid.uuid4()}.jpg"
+    save_path = os.path.join(UPLOAD_DIR, filename)
+
+    try:
+        temp_path = stream_url_to_temp_file(url)
+        with Image.open(temp_path) as img:
+            with img.convert("RGB") as rgb_img:
+                rgb_img.save(save_path, "JPEG", quality=90, optimize=True)
+                batch = preprocess_pil_image(rgb_img)
+
+        return filename, batch
+    except requests.exceptions.RequestException as exc:
+        remove_file_safely(save_path)
+        raise RuntimeError(f"Error downloading image from URL. Check URL or network: {exc}") from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        remove_file_safely(save_path)
+        raise ValueError(f"The downloaded file is not a valid image or another URL error occurred: {exc}") from exc
+    finally:
+        remove_file_safely(temp_path)
+
+
+def save_upload_and_preprocess(file):
+    filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+    save_path = os.path.join(UPLOAD_DIR, filename)
+
+    try:
+        file.save(save_path)
+        batch = preprocess_image_file(save_path)
+        return filename, batch
+    except Exception:
+        remove_file_safely(save_path)
+        raise
+
 
 def predict_topk(x, k=3):
     if model is None:
         raise ValueError("Model not loaded.")
-    preds = model.predict(x)[0]
-    top_idx = preds.argsort()[::-1][:k]
+
+    preds_tensor = model(x, training=False)
+    preds = np.asarray(preds_tensor.numpy()[0], dtype=np.float32)
+    top_idx = np.argpartition(preds, -k)[-k:]
+    top_idx = top_idx[np.argsort(preds[top_idx])[::-1]]
     return [(class_labels[i], float(preds[i])) for i in top_idx]
+
+
+def get_analysis_timestamp():
+    now = datetime.now()
+    return now.strftime('%d %b %Y'), now.strftime('%I:%M %p').lstrip('0')
+
+
+def base_result_data(filename):
+    analysis_date, analysis_time = get_analysis_timestamp()
+    return {
+        'filename': filename,
+        'analysis_date': analysis_date,
+        'analysis_time': analysis_time,
+        'model_used': MODEL_USED,
+    }
+
+
+def render_prediction_form_error(message):
+    return render_template('index.html', error_message=message)
 
 # --- Routes ---
 
@@ -150,77 +298,57 @@ def predict_post():
 
     url = request.form.get('image_url')
     file = request.files.get('file')
-
     filename = None
+    x = None
 
     if url and url.strip():
-        headers = {
-             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
         try:
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-
-            image_data = BytesIO(response.content)
-
-            filename = f"url_image_{uuid.uuid4()}.jpg"
-            save_path = os.path.join(UPLOAD_DIR, filename)
-
-            image_data.seek(0)
-            with Image.open(image_data) as img:
-                 img.save(save_path, 'JPEG')
-
-            image_data.seek(0)
-            x = preprocess_for_model(image_data, img_size=224)
-
-        except requests.exceptions.RequestException as e:
-            return render_template('index.html', error_message=f"Error downloading image from URL. Check URL or network: {e}")
-        except Exception as e:
-            return render_template('index.html', error_message=f"The downloaded file is not a valid image or another URL error occurred: {e}")
+            filename, x = save_url_image_and_preprocess(url.strip())
+        except Exception as exc:
+            log_exception("URL image processing failed.")
+            return render_prediction_form_error(str(exc))
 
     elif file and file.filename:
         try:
-            filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
-            save_path = os.path.join(UPLOAD_DIR, filename)
-            file.save(save_path)
-            x = preprocess_for_model(save_path, img_size=224)
-        except Exception as e:
-            return render_template('index.html', error_message="The uploaded file could not be processed. Not a valid image.")
+            filename, x = save_upload_and_preprocess(file)
+        except Exception:
+            log_exception("Uploaded image processing failed.")
+            return render_prediction_form_error("The uploaded file could not be processed. Not a valid image.")
     else:
-        return render_template('index.html', error_message="You must upload a file OR provide an image URL.")
+        return render_prediction_form_error("You must upload a file OR provide an image URL.")
 
     # --- PREDICTION ---
     try:
+        logger.info("Running prediction for image: %s", filename)
         top3 = predict_topk(x, k=3)
         top1_label, top1_prob = top3[0][0], top3[0][1]
-    except Exception as e:
-        return render_template('index.html', error_message=f"Prediction failed: {e}")
+        logger.info("Prediction complete for %s: %s (%.4f)", filename, top1_label, top1_prob)
+    except Exception as exc:
+        log_exception("Prediction failed.")
+        return render_prediction_form_error(f"Prediction failed: {exc}")
+    finally:
+        del x
+        gc.collect()
 
     # --- RESULT DISPLAY LOGIC ---
 
     # 1. REJECTION CHECK: If confidence is below 50%, reject the image entirely.
     if top1_prob < INVALID_IMAGE_THRESHOLD:
-        result_data = {
-            'filename': filename,
+        result_data = base_result_data(filename)
+        result_data.update({
             'is_invalid_image': True, # Flag for the template
-            'analysis_date': datetime.now().strftime('%d %b %Y'),
-            'analysis_time': datetime.now().strftime('%I:%M %p').lstrip('0'),
-            'model_used': 'EfficientNetB0',
-        }
+        })
         return render_template('results.html', **result_data)
 
     # 2. NORMAL FLOW: Handle low/high confidence retinal images.
-    result_data = {
-        'filename': filename,
+    result_data = base_result_data(filename)
+    result_data.update({
         'top3': top3,
         'top1_label': top1_label,
         'top1_prob': top1_prob,
         'is_low_conf': top1_prob < CONF_THRESHOLD,
         'disease_info': DISEASE_INFO.get(top1_label, {}),
-        'analysis_date': datetime.now().strftime('%d %b %Y'),
-        'analysis_time': datetime.now().strftime('%I:%M %p').lstrip('0'),
-        'model_used': 'EfficientNetB0',
-    }
+    })
 
     return render_template('results.html', **result_data)
 
